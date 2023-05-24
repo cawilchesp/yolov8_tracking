@@ -101,13 +101,23 @@ def draw_trajectories(image: np.array, ds_output: np.array) -> None:
                 cv2.line(image, point1, point2, color, 2, cv2.LINE_AA)
 
 
-def write_csv(csv_path: str, ds_output: np.array) -> None:
+def write_csv(csv_path: str, ds_output: np.array, frame_number: int) -> None:
     """
     Write object detection results in csv file
     """
-    # Save results in CSV
-    with open(csv_path, 'a') as f:
-        f.write(f'{frame_num},{id_num},{str(names[classes_id[i]])},{x1},{y1},{x2-x1},{y2-y1},0,\n')
+    for box in enumerate(ds_output):
+        box_xyxy = box[1][0:4]
+        object_id = box[1][-2]
+        class_id = box[1][-1]
+        if class_id in class_filter:
+            x1, y1, x2, y2 = [int(j) for j in box_xyxy]
+
+            # Save results in CSV
+            with open(f'{csv_path}.csv', 'a') as f:
+                f.write(f'{frame_number},{object_id},{class_names[class_id]},{x1},{y1},{x2-x1},{y2-y1}\n')
+
+
+
 
 
 
@@ -154,10 +164,9 @@ def main():
 
     # Output
     output_folder_name = f'{source_folder_name}{source_file_name}/'
-    output_file = f'{output_folder_name}output_{source_file_name}_{model_file}'
-    vid_writer = cv2.VideoWriter(f'{output_file}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
-    csv_writer = f'{output_file}.csv'
-
+    output_file_name = f'{output_folder_name}output_{source_file_name}_{model_file}'
+    vid_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
+    
     # Run YOLOv8 inference
     frame_number = 0
     while True:
@@ -183,13 +192,14 @@ def main():
             
             draw_boxes(image, ds_output)
             draw_trajectories(image, ds_output)
-
+            write_csv(output_file_name, ds_output, frame_number)
 
         vid_writer.write(image)
-
         # output_name = f'{output_folder_name}image_{str(frame_number).zfill(6)}.png'
         # cv2.imwrite(output_name, image)
-        # frame_number += 1
+        
+        # Increase frame number
+        frame_number += 1
 
         # Visualization
         cv2.imshow('source', image)
