@@ -189,7 +189,6 @@ def main():
         detections = model(image, stream=True)
         
         for r in detections:
-            
             boxes = r.boxes
 
             # Non-Maximum Suppression
