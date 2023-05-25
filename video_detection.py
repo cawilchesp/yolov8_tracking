@@ -12,7 +12,9 @@ from collections import deque
 # For debugging
 from icecream import ic
 
+# VARIABLES
 
+# object tracks
 track_deque = {}
 
 # class names
@@ -26,7 +28,7 @@ class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'tr
              'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
              'hair drier', 'toothbrush' ]
 
-# Class filter
+# class filter
 class_filter = [0,1,2,3,5,7]
 # class_filter = [0]
 
@@ -151,16 +153,22 @@ def main():
     source_folder_name = 'D:/SIER/Videos/Ruta_Costera/'
     source_file_name = 'PTZ010'
     # source_file_name = 'CAR021'
+    # source_file_name = 'OP030'
 
 
     cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.avi')
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
+    
+
+    print('***             Video Opened             ***')
+
         
     fourcc = 'mp4v'  # output video codec
     fps = cap.get(cv2.CAP_PROP_FPS)
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Output
     output_folder_name = f'{source_folder_name}{source_file_name}/'
@@ -168,8 +176,12 @@ def main():
     vid_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
     
     # Run YOLOv8 inference
+    print('***             Video Processing Start             ***')
     frame_number = 0
     while True:
+        print(f'Progress: {frame_number}/{frame_count}')
+
+
         success, image = cap.read()
         if not success: break
         
