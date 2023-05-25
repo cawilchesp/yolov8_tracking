@@ -1,6 +1,6 @@
 from ultralytics import YOLO
 
-model = YOLO(f'yolov8n-seg.pt')
+model = YOLO('yolov8n-seg.pt')
 
 source_folder = 'D:/SIER/Videos/Aforo_Bus/'
 # source_file = 'sgtcootransvi.dyndns.org_01_2023051112113649'
