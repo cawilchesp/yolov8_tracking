@@ -55,16 +55,19 @@ def compute_color(label: int) -> tuple:
 
 
 def draw_masks(image: np.array, boxes: torch.tensor, masks: torch.tensor) -> None:
+    masked_image = np.zeros(image.shape, dtype='uint8')
     for index, mask in enumerate(masks):
         class_id = int(boxes.cls[index])
 
         if class_id in class_filter:
             object_mask = mask.data.cpu().numpy()[0]
             color = np.array(compute_color(class_id), dtype='uint8')
-            masked_img = np.where(object_mask[...,None], color, image)
-            image = cv2.addWeighted(image, 0.6, masked_img, 0.4, 0)
+            color_mask = np.where(object_mask[...,None], color, image)
+            masked_image = cv2.add(masked_image, color_mask)
 
-    return image
+    # image = cv2.addWeighted(image, 0.6, masked_image, 0.4, 0)
+
+            return color_mask
         
 
 def main():
@@ -136,7 +139,8 @@ def main():
             segmented_image = draw_masks(image, boxes, masks)
 
         # Visualization
-        cv2.imshow('source', segmented_image)
+        cv2.imshow('source', image)
+        cv2.imshow('segmented', segmented_image)
 
         if cv2.waitKey(1) & 0xFF == 27:  # Esc to quit
             break
