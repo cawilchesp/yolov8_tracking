@@ -9,6 +9,8 @@ from deep_sort_pytorch.deep_sort import DeepSort
 
 from collections import deque
 
+from set_color import set_color
+
 # For debugging
 from icecream import ic
 
@@ -18,40 +20,17 @@ from icecream import ic
 track_deque = {}
 
 # class names
-class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
-             'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-             'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-             'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-             'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-             'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-             'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-             'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-             'hair drier', 'toothbrush' ]
+# class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
+#              'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+#              'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+#              'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
+#              'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+#              'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+#              'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+#              'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
+#              'hair drier', 'toothbrush' ]
 
-# class filter
-class_filter = [0,1,2,3,5,7]
-# class_filter = [0]
-
-def compute_color(label: int) -> tuple:
-    """
-    Adds color depending on the class
-    """
-    palette = (2 ** 11 - 1, 2 ** 15 - 1, 2 ** 20 - 1)
-    color_table = {
-        0: (85, 45, 255), # person
-        1: (7, 127, 15),  # bicycle
-        2: (255, 149, 0), # Car
-        3: (0, 204, 255), # Motobike
-        5: (0, 149, 255), # Bus
-        7: (222, 82, 175) # truck
-    }
-
-    if label in color_table.keys():
-        color = color_table[label]
-    else:
-        color = [int((p * (label ** 2 - label + 1)) % 255) for p in palette]
-    
-    return color
+class_names = ['casco','chaqueta']
 
 
 def draw_boxes(image: np.array, ds_output: np.array) -> None:
@@ -60,14 +39,27 @@ def draw_boxes(image: np.array, ds_output: np.array) -> None:
     """
     for box in enumerate(ds_output):
         box_xyxy = box[1][0:4]
+        class_id = box[1][-1]
+        if class_id in class_filter:
+            # Draw box
+            x1, y1, x2, y2 = [int(j) for j in box_xyxy]
+            color = set_color(class_id)
+            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2, cv2.LINE_AA)
+
+
+def draw_label(image: np.array, ds_output: np.array) -> None:
+    """
+    Draw object label on frame
+    """
+    for box in enumerate(ds_output):
+        box_xyxy = box[1][0:4]
         object_id = box[1][-2]
         class_id = box[1][-1]
         if class_id in class_filter:
             # Draw box
             x1, y1, x2, y2 = [int(j) for j in box_xyxy]
-            color = compute_color(class_id)
+            color = set_color(class_id)
             label = f'{class_names[class_id]} {int(object_id)}'
-            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2, cv2.LINE_AA)
 
             # Draw label
             t_size = cv2.getTextSize(label, 0, 1/3, 1)[0]
@@ -98,7 +90,7 @@ def draw_trajectories(image: np.array, ds_output: np.array) -> None:
             if int(object_id) not in track_deque:
                 track_deque[int(object_id)] = deque(maxlen=32)
             track_deque[int(object_id)].appendleft(center)
-            color = compute_color(class_id)
+            color = set_color(class_id)
             for point1, point2 in zip(list(track_deque[int(object_id)]), list(track_deque[int(object_id)])[1:]):
                 cv2.line(image, point1, point2, color, 2, cv2.LINE_AA)
 
@@ -137,31 +129,16 @@ def main():
 
     # Initialize YOLOv8 Model
     model_folder = '../weights/'
-    model_file = 'yolov8m'
+    # model_file = 'yolov8m'
+    model_file = 'yolov8m-ppe'
     model = YOLO(f'{model_folder}{model_file}.pt')
 
-    # Source
-    # source_folder_name = 'D:/SIER/Videos/DEEP_CCTV/'
-    # source_file_name = '20230412_CCTV_Barrio_Triste'
-
-    # source_folder_name = 'D:/SIER/Videos/Aforo_Bus/'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_2023051112113649'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120030951'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120254332'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511121459931'
-
-    source_folder_name = 'D:/SIER/Videos/Ruta_Costera/'
-    source_file_name = 'PTZ010'
-    # source_file_name = 'CAR021'
-    # source_file_name = 'OP030'
-
-
-    cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.avi')
+    cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.mp4')
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
     
 
-    print('***             Video Opened             ***')
+    print('***                  Video Opened                  ***')
 
         
     fourcc = 'mp4v'  # output video codec
@@ -201,9 +178,11 @@ def main():
             # Deep SORT tracking
             ds_output = deepsort.update(nms_boxes.xywh.cpu(), nms_boxes.conf.cpu(), nms_boxes.cls.cpu(), image)
             
-            draw_boxes(image, ds_output)
-            draw_trajectories(image, ds_output)
-            write_csv(output_file_name, ds_output, frame_number)
+            # Visualization
+            if show_boxes: draw_boxes(image, ds_output)
+            if show_labels: draw_label(image, ds_output)
+            if show_tracks: draw_trajectories(image, ds_output)
+            if save_csv: write_csv(output_file_name, ds_output, frame_number)
 
         vid_writer.write(image)
         # output_name = f'{output_folder_name}image_{str(frame_number).zfill(6)}.png'
@@ -222,6 +201,35 @@ def main():
 
 
 if __name__ == "__main__":
+    # CLASS FILTER
+    # class_filter = [0,1,2,3,5,7]
+    # class_filter = [0]
+    class_filter = [0,1]
+    
+    # SOURCE
+    # source_folder_name = 'D:/SIER/Videos/DEEP_CCTV/'
+    # source_file_name = '20230412_CCTV_Barrio_Triste'
+
+    # source_folder_name = 'D:/SIER/Videos/Aforo_Bus/'
+    # source_file_name = 'sgtcootransvi.dyndns.org_01_2023051112113649'
+    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120030951'
+    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120254332'
+    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511121459931'
+
+    # source_folder_name = 'D:/SIER/Videos/Ruta_Costera/'
+    # source_file_name = 'PTZ010'
+    # source_file_name = 'CAR021'
+    # source_file_name = 'OP030'
+
+    source_folder_name = 'D:/SIER/Videos/PPE/'
+    source_file_name = 'test'
+
+    # OPTIONS
+    show_boxes = True
+    show_labels = True
+    show_tracks = False
+    save_csv = True
+
     with torch.no_grad():
         main()
         
