@@ -9,6 +9,8 @@ from deep_sort_pytorch.deep_sort import DeepSort
 
 from collections import deque
 
+from set_color import set_color
+
 # For debugging
 from icecream import ic
 
@@ -32,42 +34,20 @@ class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'tr
 class_filter = [0,1,2,3,5,7]
 # class_filter = [0]
 
-def compute_color(label: int) -> tuple:
-    """
-    Adds color depending on the class
-    """
-    palette = (2 ** 11 - 1, 2 ** 15 - 1, 2 ** 20 - 1)
-    color_table = {
-        0: (85, 45, 255), # person
-        1: (7, 127, 15),  # bicycle
-        2: (255, 149, 0), # Car
-        3: (0, 204, 255), # Motobike
-        5: (0, 149, 255), # Bus
-        7: (222, 82, 175) # truck
-    }
-
-    if label in color_table.keys():
-        color = color_table[label]
-    else:
-        color = [int((p * (label ** 2 - label + 1)) % 255) for p in palette]
-    
-    return color
 
 
-def draw_masks(image: np.array, boxes: torch.tensor, masks: torch.tensor) -> None:
-    masked_image = np.zeros(image.shape, dtype='uint8')
+
+def draw_masks(masked_image: np.array, boxes: torch.tensor, masks: torch.tensor) -> None:
     for index, mask in enumerate(masks):
         class_id = int(boxes.cls[index])
 
         if class_id in class_filter:
             object_mask = mask.data.cpu().numpy()[0]
-            color = np.array(compute_color(class_id), dtype='uint8')
-            color_mask = np.where(object_mask[...,None], color, image)
-            masked_image = cv2.add(masked_image, color_mask)
+            color = np.array(set_color(class_id), dtype='uint8')
+            color_mask = np.where(object_mask[...,None], color, masked_image)
+            masked_image = cv2.addWeighted(masked_image, 0.6, color_mask, 0.4, 0)
 
-    # image = cv2.addWeighted(image, 0.6, masked_image, 0.4, 0)
-
-            return color_mask
+    return masked_image
         
 
 def main():
@@ -106,7 +86,7 @@ def main():
         raise RuntimeError('Cannot open source')
     
 
-    print('***             Video Opened             ***')
+    print('***                  Video Opened                  ***')
 
         
     fourcc = 'mp4v'  # output video codec
