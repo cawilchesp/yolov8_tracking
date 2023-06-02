@@ -16,21 +16,18 @@ from icecream import ic
 
 # VARIABLES
 
-# object tracks
-track_deque = {}
-
 # class names
-# class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
-#              'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-#              'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-#              'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-#              'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-#              'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-#              'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-#              'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-#              'hair drier', 'toothbrush' ]
+class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
+             'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+             'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+             'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
+             'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+             'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+             'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+             'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
+             'hair drier', 'toothbrush' ]
 
-class_names = ['casco','chaqueta']
+# class_names = ['casco','chaqueta']
 
 
 def draw_boxes(image: np.array, ds_output: np.array) -> None:
@@ -129,11 +126,11 @@ def main():
 
     # Initialize YOLOv8 Model
     model_folder = '../weights/'
-    # model_file = 'yolov8m'
-    model_file = 'yolov8m-ppe'
+    model_file = 'yolov8m'
+    # model_file = 'yolov8m-ppe'
     model = YOLO(f'{model_folder}{model_file}.pt')
 
-    cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.mp4')
+    cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.avi')
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
     
@@ -157,7 +154,6 @@ def main():
     frame_number = 0
     while True:
         print(f'Progress: {frame_number}/{frame_count}')
-
 
         success, image = cap.read()
         if not success: break
@@ -202,9 +198,9 @@ def main():
 
 if __name__ == "__main__":
     # CLASS FILTER
-    # class_filter = [0,1,2,3,5,7]
+    class_filter = [0,1,2,3,5,7]
     # class_filter = [0]
-    class_filter = [0,1]
+    # class_filter = [0,1]
     
     # SOURCE
     # source_folder_name = 'D:/SIER/Videos/DEEP_CCTV/'
@@ -216,19 +212,29 @@ if __name__ == "__main__":
     # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120254332'
     # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511121459931'
 
-    # source_folder_name = 'D:/SIER/Videos/Ruta_Costera/'
-    # source_file_name = 'PTZ010'
+    source_folder_name = 'D:/INTEIA/Videos/Proyectos/Ruta_Costera/'
+    source_file_name = 'PTZ010'
     # source_file_name = 'CAR021'
     # source_file_name = 'OP030'
 
-    source_folder_name = 'D:/SIER/Videos/PPE/'
-    source_file_name = 'test'
+    # source_folder_name = 'D:/SIER/Videos/PPE/'
+    # source_file_name = 'test'
+
+
+
+    # object tracks
+    track_deque = {}
+
 
     # OPTIONS
     show_boxes = True
     show_labels = True
-    show_tracks = False
+    show_tracks = True
     save_csv = True
+
+
+
+
 
     with torch.no_grad():
         main()
