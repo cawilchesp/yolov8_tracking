@@ -3,11 +3,13 @@ from ultralytics import YOLO
 import cv2
 import torch
 import numpy as np
+import yaml
+from collections import deque
 
 from deep_sort_pytorch.utils.parser import get_config
 from deep_sort_pytorch.deep_sort import DeepSort
 
-from collections import deque
+
 
 from set_color import set_color
 
@@ -30,6 +32,7 @@ class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'tr
 # class_names = ['casco','chaqueta']
 
 
+
 def draw_boxes(image: np.array, ds_output: np.array) -> None:
     """
     Draw bounding boxes on frame
@@ -37,7 +40,7 @@ def draw_boxes(image: np.array, ds_output: np.array) -> None:
     for box in enumerate(ds_output):
         box_xyxy = box[1][0:4]
         class_id = box[1][-1]
-        if class_id in class_filter:
+        if class_id in detection_config['DETECTION']['CLASS_FILTER']:
             # Draw box
             x1, y1, x2, y2 = [int(j) for j in box_xyxy]
             color = set_color(class_id)
@@ -52,9 +55,9 @@ def draw_label(image: np.array, ds_output: np.array) -> None:
         box_xyxy = box[1][0:4]
         object_id = box[1][-2]
         class_id = box[1][-1]
-        if class_id in class_filter:
+        if class_id in detection_config['DETECTION']['CLASS_FILTER']:
             # Draw box
-            x1, y1, x2, y2 = [int(j) for j in box_xyxy]
+            x1, y1, _, _ = [int(j) for j in box_xyxy]
             color = set_color(class_id)
             label = f'{class_names[class_id]} {int(object_id)}'
 
@@ -80,7 +83,7 @@ def draw_trajectories(image: np.array, ds_output: np.array) -> None:
         box_xyxy = box[1][0:4]
         object_id = box[1][-2]
         class_id = box[1][-1]
-        if class_id in class_filter:
+        if class_id in detection_config['DETECTION']['CLASS_FILTER']:
             # Draw track line
             x1, y1, x2, y2 = [int(j) for j in box_xyxy]
             center = (int((x2+x1)/2), int((y2+y1)/2))
@@ -100,7 +103,7 @@ def write_csv(csv_path: str, ds_output: np.array, frame_number: int) -> None:
         box_xyxy = box[1][0:4]
         object_id = box[1][-2]
         class_id = box[1][-1]
-        if class_id in class_filter:
+        if class_id in detection_config['DETECTION']['CLASS_FILTER']:
             x1, y1, x2, y2 = [int(j) for j in box_xyxy]
 
             # Save results in CSV
@@ -125,12 +128,13 @@ def main():
                         use_cuda=True)
 
     # Initialize YOLOv8 Model
-    model_folder = '../weights/'
-    model_file = 'yolov8m'
-    # model_file = 'yolov8m-ppe'
-    model = YOLO(f'{model_folder}{model_file}.pt')
+    yolo_config = detection_config['YOLO']
+    model = YOLO(f"weights/{yolo_config['YOLO_WEIGHTS']}.pt")
 
-    cap = cv2.VideoCapture(f'{source_folder_name}{source_file_name}.avi')
+    # Initialize Input
+    input_config = detection_config['INPUT']
+
+    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.avi")
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
     
@@ -145,8 +149,7 @@ def main():
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Output
-    output_folder_name = f'{source_folder_name}{source_file_name}/'
-    output_file_name = f'{output_folder_name}output_{source_file_name}_{model_file}'
+    output_file_name = f"{input_config['FOLDER']}{input_config['FILE']}/output_{input_config['FILE']}_yolov8m"
     vid_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
     
     # Run YOLOv8 inference
@@ -165,7 +168,7 @@ def main():
             boxes = r.boxes
 
             # Non-Maximum Suppression
-            values, indices = torch.sort(boxes.conf, descending=True)
+            _, indices = torch.sort(boxes.conf, descending=True)
             sorted_boxes = boxes[indices]
 
             nms_indices = torch.ops.torchvision.nms(sorted_boxes.xyxy, boxes.conf, 0.5)
@@ -175,10 +178,10 @@ def main():
             ds_output = deepsort.update(nms_boxes.xywh.cpu(), nms_boxes.conf.cpu(), nms_boxes.cls.cpu(), image)
             
             # Visualization
-            if show_boxes: draw_boxes(image, ds_output)
-            if show_labels: draw_label(image, ds_output)
-            if show_tracks: draw_trajectories(image, ds_output)
-            if save_csv: write_csv(output_file_name, ds_output, frame_number)
+            if detection_config['SHOW']['BOXES']: draw_boxes(image, ds_output)
+            if detection_config['SHOW']['LABELS']: draw_label(image, ds_output)
+            if detection_config['SHOW']['TRACKS']: draw_trajectories(image, ds_output)
+            if detection_config['SAVE']['CSV']: write_csv(output_file_name, ds_output, frame_number)
 
         vid_writer.write(image)
         # output_name = f'{output_folder_name}image_{str(frame_number).zfill(6)}.png'
@@ -197,44 +200,12 @@ def main():
 
 
 if __name__ == "__main__":
-    # CLASS FILTER
-    class_filter = [0,1,2,3,5,7]
-    # class_filter = [0]
-    # class_filter = [0,1]
-    
-    # SOURCE
-    # source_folder_name = 'D:/SIER/Videos/DEEP_CCTV/'
-    # source_file_name = '20230412_CCTV_Barrio_Triste'
-
-    # source_folder_name = 'D:/SIER/Videos/Aforo_Bus/'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_2023051112113649'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120030951'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511120254332'
-    # source_file_name = 'sgtcootransvi.dyndns.org_01_20230511121459931'
-
-    source_folder_name = 'D:/INTEIA/Videos/Proyectos/Ruta_Costera/'
-    source_file_name = 'PTZ010'
-    # source_file_name = 'CAR021'
-    # source_file_name = 'OP030'
-
-    # source_folder_name = 'D:/SIER/Videos/PPE/'
-    # source_file_name = 'test'
-
-
+    # Initialize Configuration File
+    with open('detection_config.yaml', 'r') as file:
+        detection_config = yaml.safe_load(file)
 
     # object tracks
     track_deque = {}
-
-
-    # OPTIONS
-    show_boxes = True
-    show_labels = True
-    show_tracks = True
-    save_csv = True
-
-
-
-
 
     with torch.no_grad():
         main()
