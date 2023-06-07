@@ -2,8 +2,8 @@ YOLO:
   YOLO_WEIGHTS: 'yolov8m'
 INPUT:
   FOLDER: 'D:/INTEIA/Videos/Proyectos/Ruta_Costera/'
-  # FILE: 'PTZ010'
-  FILE: 'CAR021'
+  FILE: 'PTZ010'
+  # FILE: 'CAR021'
   # FILE: 'OP030'
 
   # FOLDER: 'D:/INTEIA/Videos/DEEP_CCTV/'
