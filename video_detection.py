@@ -4,33 +4,25 @@ import cv2
 import torch
 import numpy as np
 import yaml
+import time
 from collections import deque
 
 from deep_sort_pytorch.utils.parser import get_config
 from deep_sort_pytorch.deep_sort import DeepSort
-
-
 
 from set_color import set_color
 
 # For debugging
 from icecream import ic
 
-# VARIABLES
 
-# class names
-class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
-             'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-             'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-             'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-             'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-             'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-             'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-             'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-             'hair drier', 'toothbrush' ]
-
-# class_names = ['casco','chaqueta']
-
+def time_synchronized():
+    """
+    PyTorch accurate time
+    """
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    return time.time()
 
 
 def draw_boxes(image: np.array, ds_output: np.array) -> None:
@@ -111,12 +103,6 @@ def write_csv(csv_path: str, ds_output: np.array, frame_number: int) -> None:
                 f.write(f'{frame_number},{object_id},{class_names[class_id]},{x1},{y1},{x2-x1},{y2-y1}\n')
 
 
-
-
-
-
-
-
 def main():
     # Initialize Deep-SORT
     cfg_deep = get_config()
@@ -138,10 +124,8 @@ def main():
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
     
-
     print('***                  Video Opened                  ***')
-
-        
+    
     fourcc = 'mp4v'  # output video codec
     fps = cap.get(cv2.CAP_PROP_FPS)
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -149,20 +133,25 @@ def main():
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Output
-    output_file_name = f"{input_config['FOLDER']}{input_config['FILE']}/output_{input_config['FILE']}_yolov8m"
-    vid_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
+    output_file_name = f"{input_config['FOLDER']}{input_config['FILE']}/output_{input_config['FILE']}_{yolo_config['YOLO_WEIGHTS']}_tracking"
+    
+    video_writer_flag = False
+    if detection_config['SAVE']['VIDEO']:
+        video_writer_flag = True
+        video_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
     
     # Run YOLOv8 inference
     print('***             Video Processing Start             ***')
     frame_number = 0
+    
     while True:
-        print(f'Progress: {frame_number}/{frame_count}')
-
         success, image = cap.read()
         if not success: break
         
         # Process YOLOv8 detections
+        t1 = time_synchronized()
         detections = model(image, stream=True)
+        t2 = time_synchronized()
         
         for r in detections:
             boxes = r.boxes
@@ -181,22 +170,28 @@ def main():
             if detection_config['SHOW']['BOXES']: draw_boxes(image, ds_output)
             if detection_config['SHOW']['LABELS']: draw_label(image, ds_output)
             if detection_config['SHOW']['TRACKS']: draw_trajectories(image, ds_output)
+            
+            # Save in CSV
             if detection_config['SAVE']['CSV']: write_csv(output_file_name, ds_output, frame_number)
 
-        vid_writer.write(image)
+        # Save video
+        if video_writer_flag: video_writer.write(image)
         # output_name = f'{output_folder_name}image_{str(frame_number).zfill(6)}.png'
         # cv2.imwrite(output_name, image)
         
         # Increase frame number
+        print(f'Progress: {frame_number}/{frame_count}, Inference time: {1000*(t2-t1):.2f} ms')
         frame_number += 1
 
         # Visualization
         cv2.imshow('source', image)
         
-        if cv2.waitKey(1) & 0xFF == 27:  # Esc to quit
+        # Stop if Esc key is pressed
+        if cv2.waitKey(1) & 0xFF == 27:
             break
 
-    vid_writer.release()
+    if video_writer_flag:
+        video_writer.release()
 
 
 if __name__ == "__main__":
@@ -206,6 +201,19 @@ if __name__ == "__main__":
 
     # object tracks
     track_deque = {}
+
+    # class names
+    class_names = [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 
+        'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+        'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+        'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
+        'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+        'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+        'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
+        'hair drier', 'toothbrush' ]
+
+    # class_names = ['casco','chaqueta']
 
     with torch.no_grad():
         main()
