@@ -1,0 +1,16 @@
+YOLO:
+  YOLO_WEIGHTS: 'yolov8m-seg'
+INPUT:
+  FOLDER: 'D:/INTEIA/Videos/Proyectos/Ruta_Costera/'
+  FILE: 'PTZ010'
+DETECTION:
+  CLASS_FILTER: [0,1,2,3,5,7]
+SHOW:
+  BOXES: True
+  LABELS: True
+  TRACKS: True
+  MASKS: False
+SAVE:
+  VIDEO: True
+  CSV: True
+  
