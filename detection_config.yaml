@@ -26,6 +26,7 @@ SHOW:
   BOXES: True
   LABELS: True
   TRACKS: True
+  MASKS: False
 SAVE:
   VIDEO: True
   CSV: True
