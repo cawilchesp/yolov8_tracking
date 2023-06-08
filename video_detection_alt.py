@@ -127,7 +127,8 @@ def main():
             conf=0.5,
             device=0,
             agnostic_nms=True,
-            classes=detection_config['DETECTION']['CLASS_FILTER']
+            classes=detection_config['DETECTION']['CLASS_FILTER'], 
+            verbose=False
             )
         t2 = time_synchronized()
 
