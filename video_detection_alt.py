@@ -92,7 +92,7 @@ def main():
     # Initialize Input
     input_config = detection_config['INPUT']
 
-    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.avi")
+    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.mp4")
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
     
