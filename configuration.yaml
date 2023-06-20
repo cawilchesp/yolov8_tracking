@@ -9,8 +9,8 @@ SHOW:
   BOXES: True
   LABELS: True
   TRACKS: True
-  MASKS: False
+  MASKS: True
 SAVE:
-  VIDEO: True
-  CSV: True
+  VIDEO: False
+  CSV: False
   
