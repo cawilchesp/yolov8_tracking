@@ -57,7 +57,7 @@ def draw_trajectories(image: np.array, object: np.array) -> None:
     # Draw track line
     center = (int((x2+x1)/2), int((y2+y1)/2))
     if int(object_id) not in track_deque:
-        track_deque[int(object_id)] = deque(maxlen=32)
+        track_deque[int(object_id)] = deque(maxlen=128)
     track_deque[int(object_id)].appendleft(center)
     color = set_color(class_id)
     for point1, point2 in zip(list(track_deque[int(object_id)]), list(track_deque[int(object_id)])[1:]):
@@ -81,8 +81,23 @@ def write_csv(csv_path: str, object: np.array, frame_number: int) -> None:
 
 
 def main():
+    # Initialize Deep-SORT
+    with open('deep_sort_pytorch/configs/deep_sort.yaml', 'r') as file:
+        deepsort_config = yaml.safe_load(file)['DEEPSORT']
+
+    deepsort = DeepSort(
+        model_path = deepsort_config['REID_CKPT'],
+        max_dist = deepsort_config['MAX_DIST'],
+        min_confidence = deepsort_config['MIN_CONFIDENCE'],
+        nms_max_overlap = deepsort_config['NMS_MAX_OVERLAP'],
+        max_iou_distance = deepsort_config['MAX_IOU_DISTANCE'],
+        max_age = deepsort_config['MAX_AGE'],
+        n_init = deepsort_config['N_INIT'],
+        nn_budget = deepsort_config['NN_BUDGET'],
+        use_cuda = True)
+    
     # Initialize Input
-    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.avi")
+    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.mp4")
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
 
@@ -112,6 +127,65 @@ def main():
 
     # Start video processing
     print('***          Video Processing Start          ***')
+    frame_number = 0
+    while True:
+        success, image = cap.read()
+        if not success: break
+
+        # Run YOLOv8 inference
+        t1 = time_synchronized()
+        detections = model.predict(
+            source=image,
+            conf=0.5,
+            device=0,
+            agnostic_nms=True,
+            classes=detection_config['CLASS_FILTER'],
+            verbose=False
+            )
+        t2 = time_synchronized()
+
+        # Deep SORT tracking
+        deepsort_output = deepsort.update(detections[0].boxes.xywh.cpu(), detections[0].boxes.conf.cpu(), detections[0].boxes.cls.cpu(), image)
+
+        for key in list(track_deque):
+            if key not in deepsort_output[:,-2]:
+                track_deque.pop(key)
+
+        ic(track_deque)
+
+        for object in deepsort_output:
+            # Visualization
+            if show_config['BOXES']: draw_boxes(image, object)
+            if show_config['LABELS']: draw_label(image, object)
+            if show_config['TRACKS']: draw_trajectories(image, object)
+            
+            # Save in CSV
+            if save_config['CSV']: write_csv(output_file_name, object, frame_number)
+
+
+
+
+
+
+
+
+
+
+        # Increase frame number
+        print(f'Progress: {frame_number}/{frame_count}, Inference time: {1000*(t2-t1):.2f} ms')
+        frame_number += 1
+
+        # Visualization
+        cv2.imshow('source', image)
+        
+        # Stop if Esc key is pressed
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+
+
+
+
 
 
 
