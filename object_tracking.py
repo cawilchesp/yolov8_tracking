@@ -7,13 +7,9 @@ import yaml
 import time
 from collections import deque
 
-from deep_sort_pytorch.utils.parser import get_config
 from deep_sort_pytorch.deep_sort import DeepSort
 
 from set_color import set_color
-
-# For debugging
-from icecream import ic
 
 
 def time_synchronized():
@@ -64,6 +60,18 @@ def draw_trajectories(image: np.array, object: np.array) -> None:
         cv2.line(image, point1, point2, color, 2, cv2.LINE_AA)
 
 
+def draw_masks(image: np.array, boxes: torch.tensor, masks: torch.tensor) -> None:
+    """
+    Draw object masks on frame
+    """
+    for index, mask in enumerate(masks):
+        class_id = int(boxes.cls[index])
+        object_mask = mask.data.cpu().numpy()[0]
+        color = np.array(set_color(class_id), dtype='uint8')
+        color_mask = np.where(object_mask[...,None], color, image)
+        cv2.addWeighted(image, 0.6, color_mask, 0.4, 0, image)
+
+
 def write_csv(csv_path: str, object: np.array, frame_number: int) -> None:
     """
     Write object detection results in csv file
@@ -97,7 +105,7 @@ def main():
         use_cuda = True)
     
     # Initialize Input
-    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.mp4")
+    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.avi")
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
 
@@ -151,25 +159,20 @@ def main():
             if key not in deepsort_output[:,-2]:
                 track_deque.pop(key)
 
-        ic(track_deque)
-
         for object in deepsort_output:
             # Visualization
             if show_config['BOXES']: draw_boxes(image, object)
             if show_config['LABELS']: draw_label(image, object)
             if show_config['TRACKS']: draw_trajectories(image, object)
+            if show_config['MASKS']:
+                if detections[0].masks:
+                    draw_masks(image, detections[0].boxes, detections[0].masks)
             
             # Save in CSV
             if save_config['CSV']: write_csv(output_file_name, object, frame_number)
 
-
-
-
-
-
-
-
-
+        # Save video
+        if video_writer_flag: video_writer.write(image)
 
         # Increase frame number
         print(f'Progress: {frame_number}/{frame_count}, Inference time: {1000*(t2-t1):.2f} ms')
@@ -182,13 +185,9 @@ def main():
         if cv2.waitKey(1) & 0xFF == 27:
             break
 
-
-
-
-
-
-
-
+    # Release video writer instance
+    if video_writer_flag:
+        video_writer.release()
 
 if __name__ == "__main__":
     # Initialize Configuration File
