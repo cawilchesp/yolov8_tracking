@@ -11,6 +11,6 @@ SHOW:
   TRACKS: True
   MASKS: True
 SAVE:
-  VIDEO: False
-  CSV: False
+  VIDEO: True
+  CSV: True
   
