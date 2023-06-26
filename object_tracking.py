@@ -5,11 +5,15 @@ import torch
 import numpy as np
 import yaml
 import time
+import pathlib
 from collections import deque
 
 from deep_sort_pytorch.deep_sort import DeepSort
 
 from set_color import set_color
+
+# For debugging
+from icecream import ic
 
 
 def time_synchronized():
@@ -60,16 +64,14 @@ def draw_trajectories(image: np.array, object: np.array) -> None:
         cv2.line(image, point1, point2, color, 2, cv2.LINE_AA)
 
 
-def draw_masks(image: np.array, boxes: torch.tensor, masks: torch.tensor) -> None:
+def draw_masks(image: np.array, object: np.array, mask: np.array) -> None:
     """
     Draw object masks on frame
     """
-    for index, mask in enumerate(masks):
-        class_id = int(boxes.cls[index])
-        object_mask = mask.data.cpu().numpy()[0]
-        color = np.array(set_color(class_id), dtype='uint8')
-        color_mask = np.where(object_mask[...,None], color, image)
-        cv2.addWeighted(image, 0.6, color_mask, 0.4, 0, image)
+    class_id = object[5]
+    color = np.array(set_color(class_id), dtype='uint8')
+    color_mask = np.where(mask[...,None], color, image)
+    cv2.addWeighted(image, 0.6, color_mask, 0.4, 0, image)
 
 
 def write_csv(csv_path: str, object: np.array, frame_number: int) -> None:
@@ -104,8 +106,12 @@ def main():
         nn_budget = deepsort_config['NN_BUDGET'],
         use_cuda = True)
     
+    work_folder = input_config['FOLDER']
+    
     # Initialize Input
-    cap = cv2.VideoCapture(f"{input_config['FOLDER']}{input_config['FILE']}.avi")
+    input_file_name = pathlib.Path(input_config['FILE']).stem
+    input_file_extension = pathlib.Path(input_config['FILE']).suffix   
+    cap = cv2.VideoCapture(f"{work_folder}{input_file_name}{input_file_extension}")
     if not cap.isOpened():
         raise RuntimeError('Cannot open source')
 
@@ -123,12 +129,12 @@ def main():
     print('************************************************')
 
     # Output
-    output_file_name = f"{input_config['FOLDER']}{input_config['FILE']}/output_{input_config['FILE']}_{yolo_config['YOLO_WEIGHTS']}_tracking"
+    output_file_name = f"{work_folder}{input_file_name}/output_{input_file_name}_{yolo_config['YOLO_WEIGHTS']}_tracking.mp4"
     
     video_writer_flag = False
     if save_config['VIDEO']:
         video_writer_flag = True
-        video_writer = cv2.VideoWriter(f'{output_file_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+        video_writer = cv2.VideoWriter(f'{output_file_name}', cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
     
     # Initialize YOLOv8 Model
     model = YOLO(f"weights/{yolo_config['YOLO_WEIGHTS']}.pt")
@@ -137,53 +143,61 @@ def main():
     print('***          Video Processing Start          ***')
     frame_number = 0
     while True:
+        tp_1 = time_synchronized()
+
         success, image = cap.read()
         if not success: break
 
         # Run YOLOv8 inference
-        t1 = time_synchronized()
+        ti_1 = time_synchronized()
         detections = model.predict(
             source=image,
-            conf=0.5,
+            conf=detection_config['CONFIDENCE'],
             device=0,
             agnostic_nms=True,
             classes=detection_config['CLASS_FILTER'],
+            retina_masks=True,
             verbose=False
             )
-        t2 = time_synchronized()
+        ti_2 = time_synchronized()
 
         # Deep SORT tracking
-        deepsort_output = deepsort.update(detections[0].boxes.xywh.cpu(), detections[0].boxes.conf.cpu(), detections[0].boxes.cls.cpu(), image)
+        if len(detections[0].boxes.data)>0 and len(detections[0].masks.data)>0:
+            deepsort_output = deepsort.update(detections[0].boxes.xywh.cpu(), detections[0].boxes.conf.cpu(), detections[0].boxes.cls.cpu(), image)
 
-        for key in list(track_deque):
-            if key not in deepsort_output[:,-2]:
-                track_deque.pop(key)
+            # for key in list(track_deque):
+            #     if key not in deepsort_output[:,-2]:
+            #         track_deque.pop(key)
 
-        for object in deepsort_output:
-            # Visualization
-            if show_config['BOXES']: draw_boxes(image, object)
-            if show_config['LABELS']: draw_label(image, object)
-            if show_config['TRACKS']: draw_trajectories(image, object)
-            if show_config['MASKS']:
-                if detections[0].masks:
-                    draw_masks(image, detections[0].boxes, detections[0].masks)
+            for object in deepsort_output:
+                # Visualization
+                if draw_config['BOXES']: draw_boxes(image, object)
+                if draw_config['LABELS']: draw_label(image, object)
+                if draw_config['TRACKS']: draw_trajectories(image, object)
+
+                # Save in CSV
+                if save_config['CSV']: write_csv(output_file_name, object, frame_number)
             
-            # Save in CSV
-            if save_config['CSV']: write_csv(output_file_name, object, frame_number)
-
+            if draw_config['MASKS']:
+                for object , mask in zip(detections[0].boxes.data.cpu() , detections[0].masks.data.cpu()):
+                    draw_masks(image, object, mask)
+                
         # Save video
         if video_writer_flag: video_writer.write(image)
 
+        tp_2 = time_synchronized()
+
         # Increase frame number
-        print(f'Progress: {frame_number}/{frame_count}, Inference time: {1000*(t2-t1):.2f} ms')
+        print(f'Progress: {frame_number}/{frame_count}, Inference time: {1000*(ti_2-ti_1):.2f} ms, Total time: {1000*(tp_2-tp_1):.2f}')
         frame_number += 1
 
         # Visualization
-        cv2.imshow('source', image)
-        
-        # Stop if Esc key is pressed
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
+        if config['SHOW']:
+            cv2.imshow('source', image)
+            
+            # Stop if Esc key is pressed
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
 
     # Release video writer instance
     if video_writer_flag:
@@ -191,14 +205,14 @@ def main():
 
 if __name__ == "__main__":
     # Initialize Configuration File
-    with open('configuration.yaml', 'r') as file:
+    with open('video_config.yaml', 'r') as file:
         config = yaml.safe_load(file)
 
     # Configuration
     yolo_config = config['YOLO']
     input_config = config['INPUT']
     detection_config = config['DETECTION']
-    show_config = config['SHOW']
+    draw_config = config['DRAW']
     save_config = config['SAVE']
 
     # object tracks
